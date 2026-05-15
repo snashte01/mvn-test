@@ -1,0 +1,9 @@
+
+
+test:
+  override:
+    - mvn package
+    
+  post:
+    - mkdir $CIRCLE_ARTIFACTS/jars
+    - mv target/*.jar $CIRCLE_ARTIFACTS/jars
