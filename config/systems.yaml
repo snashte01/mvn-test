@@ -1,0 +1,41 @@
+systems:
+  - sid: ERP
+    description: "ERP Production System"
+    pacemaker_enabled: true
+    ssh:
+      user: opsadmin
+      key_file: ~/.ssh/zeroops_rsa
+      port: 22
+    app_instances:
+      - host: erp-app-01
+        instance_number: "00"
+      - host: erp-app-02
+        instance_number: "01"
+    hana:
+      primary_host: erp-hana-01
+      secondary_host: erp-hana-02
+      sid: HDB
+      instance_number: "00"
+      hsr_enabled: true
+    pacemaker:
+      sap_resource: rsc_sap_ERP
+      hana_resource: rsc_SAPHana_HDB_00
+      cluster_host: erp-app-01
+
+  - sid: DEV
+    description: "DEV System (no Pacemaker)"
+    pacemaker_enabled: false
+    ssh:
+      user: opsadmin
+      key_file: ~/.ssh/zeroops_rsa
+      port: 22
+    app_instances:
+      - host: dev-app-01
+        instance_number: "00"
+    hana:
+      primary_host: dev-hana-01
+      secondary_host: null
+      sid: HDB
+      instance_number: "00"
+      hsr_enabled: false
+    pacemaker: null
