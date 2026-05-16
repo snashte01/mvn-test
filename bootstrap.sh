@@ -141,6 +141,14 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
 
 
 class ThreadedHTTPServer(HTTPServer):
+    def server_bind(self):
+        # Skip socket.getfqdn() — it does a reverse DNS lookup on 0.0.0.0
+        # which hangs on RHEL hosts with slow or missing DNS.
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = self.server_address[0]
+        self.server_port = self.server_address[1]
+
     def process_request(self, request, client_address):
         t = threading.Thread(target=self.finish_request,
                              args=(request, client_address), daemon=True)
