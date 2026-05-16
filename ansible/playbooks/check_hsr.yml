@@ -1,0 +1,39 @@
+---
+# Checks HANA System Replication state on each primary host.
+# Runs hdbnsutil -sr_state as <sid>adm and writes raw output to
+# /tmp/sap_mgmt/hsr_<host>.txt on the management server.
+- name: Check HANA System Replication status
+  hosts: hana_primary
+  gather_facts: false
+  become: true
+
+  vars:
+    tmp_dir: /tmp/sap_mgmt
+
+  pre_tasks:
+    - name: Ensure result directory exists on management server
+      local_action:
+        module: file
+        path: "{{ tmp_dir }}"
+        state: directory
+        mode: '0755'
+      become: false
+      run_once: true
+
+  tasks:
+    - name: Get HSR state via hdbnsutil
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        hdbnsutil -sr_state
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: hsr_out
+      changed_when: false
+
+    - name: Write HSR state to management server
+      local_action:
+        module: copy
+        content: "{{ hsr_out.stdout }}\n"
+        dest: "{{ tmp_dir }}/hsr_{{ inventory_hostname }}.txt"
+      become: false

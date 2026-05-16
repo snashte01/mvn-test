@@ -1,0 +1,44 @@
+---
+# Extends an LVM logical volume and grows the filesystem online.
+# Variables (all required):
+#   target_host  - hostname to operate on
+#   lv_path      - full LV path, e.g. /dev/mapper/vg_data-lv_hana
+#   mount_point  - filesystem mount point, e.g. /hana/data
+#   extend_size  - amount to add, e.g. 10G
+#   fs_type      - xfs (default) or ext4
+- name: Extend LVM filesystem
+  hosts: "{{ target_host }}"
+  gather_facts: false
+  become: true
+
+  vars:
+    fs_type: xfs
+    tmp_dir: /tmp/sap_mgmt
+
+  tasks:
+    - name: Confirm LV exists
+      command: lvdisplay {{ lv_path }}
+      changed_when: false
+
+    - name: Extend logical volume by {{ extend_size }}
+      command: lvextend -L +{{ extend_size }} {{ lv_path }}
+
+    - name: Grow XFS filesystem online
+      command: xfs_growfs {{ mount_point }}
+      when: fs_type == 'xfs'
+
+    - name: Grow ext4 filesystem online
+      command: resize2fs {{ lv_path }}
+      when: fs_type == 'ext4'
+
+    - name: Verify new filesystem size
+      shell: df -h {{ mount_point }} | awk 'NR>1'
+      register: new_size
+      changed_when: false
+
+    - name: Write result to management server
+      local_action:
+        module: copy
+        content: "{{ new_size.stdout }}\n"
+        dest: "{{ tmp_dir }}/extend_result_{{ inventory_hostname }}.txt"
+      become: false

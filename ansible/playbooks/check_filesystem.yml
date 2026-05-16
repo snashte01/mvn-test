@@ -1,0 +1,42 @@
+---
+# Collects filesystems above the given threshold on all HANA hosts.
+# Results are written as pipe-delimited text to /tmp/sap_mgmt/fs_<host>.txt
+# on the management server so the Python web layer can parse them.
+- name: Check filesystem usage on HANA hosts
+  hosts: "{{ target | default('all_hana') }}"
+  gather_facts: false
+  become: true
+
+  vars:
+    threshold: 80
+    tmp_dir: /tmp/sap_mgmt
+
+  pre_tasks:
+    - name: Ensure result directory exists on management server
+      local_action:
+        module: file
+        path: "{{ tmp_dir }}"
+        state: directory
+        mode: '0755'
+      become: false
+      run_once: true
+
+  tasks:
+    - name: Collect filesystems above {{ threshold }}%
+      shell: >
+        df -P | awk -v t="{{ threshold }}" '
+          NR>1 {
+            gsub(/%/, "", $5)
+            if ($5+0 >= t+0)
+              printf "%s|%s|%s|%s|%s|%s\n", $1, $2, $3, $4, $5, $6
+          }
+        '
+      register: df_out
+      changed_when: false
+
+    - name: Write results to management server
+      local_action:
+        module: copy
+        content: "{{ df_out.stdout }}\n"
+        dest: "{{ tmp_dir }}/fs_{{ inventory_hostname }}.txt"
+      become: false

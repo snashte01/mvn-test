@@ -1,0 +1,18 @@
+[Unit]
+Description=SAP Landscape Manager
+After=network.target
+
+[Service]
+Type=simple
+User=sapmgmt
+Group=sapmgmt
+WorkingDirectory=/opt/sap-landscape-mgmt
+ExecStart=/usr/bin/python3 /opt/sap-landscape-mgmt/server.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=SAP_MGMT_PORT=8080
+
+[Install]
+WantedBy=multi-user.target

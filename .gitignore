@@ -1,0 +1,4 @@
+*.pyc
+__pycache__/
+db/audit.db
+/tmp/sap_mgmt/

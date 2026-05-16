@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""SAP Landscape Manager - main HTTP server (stdlib only, no pip required)."""
+
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+import urllib.parse
+import traceback
+import datetime
+import os
+import sys
+
+PORT = int(os.environ.get('SAP_MGMT_PORT', 8080))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+class SAPMgmtHandler(BaseHTTPRequestHandler):
+
+    def _send_html(self, content, status=200):
+        body = content.encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_post_params(self):
+        length = int(self.headers.get('Content-Length', 0))
+        if not length:
+            return {}
+        raw = self.rfile.read(length).decode('utf-8')
+        return urllib.parse.parse_qs(raw, keep_blank_values=True)
+
+    def _error_page(self, message):
+        from templates.base import render
+        content = f'<div class="alert alert-danger"><pre>{message}</pre></div>'
+        return render('Error', content)
+
+    def do_GET(self):
+        path = self.path.split('?')[0].rstrip('/') or '/'
+        try:
+            if path in ('/', '/dashboard'):
+                from templates.dashboard import render_dashboard
+                self._send_html(render_dashboard())
+            elif path == '/fs':
+                from templates.filesystem import render_fs_page
+                self._send_html(render_fs_page())
+            elif path == '/hsr':
+                from templates.hsr import render_hsr_page
+                self._send_html(render_hsr_page())
+            elif path == '/backup':
+                from templates.backup import render_backup_page
+                self._send_html(render_backup_page())
+            else:
+                self._send_html(self._error_page('Page not found'), 404)
+        except Exception:
+            self._send_html(self._error_page(traceback.format_exc()), 500)
+
+    def do_POST(self):
+        params = self._read_post_params()
+        path = self.path
+        try:
+            if path == '/fs/check':
+                from handlers.filesystem import run_check
+                self._send_html(run_check(params))
+            elif path == '/fs/extend':
+                from handlers.filesystem import run_extend
+                self._send_html(run_extend(params))
+            elif path == '/hsr/check':
+                from handlers.hsr import run_check
+                self._send_html(run_check(params))
+            elif path == '/backup/trigger':
+                from handlers.backup import run_trigger
+                self._send_html(run_trigger(params))
+            else:
+                self._send_html(self._error_page('Endpoint not found'), 404)
+        except Exception:
+            self._send_html(self._error_page(traceback.format_exc()), 500)
+
+    def log_message(self, fmt, *args):
+        sys.stdout.write(
+            f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+            f"{self.address_string()} {fmt % args}\n"
+        )
+        sys.stdout.flush()
+
+
+class ThreadedHTTPServer(HTTPServer):
+    """Handle each request in a dedicated daemon thread."""
+
+    def process_request(self, request, client_address):
+        t = threading.Thread(
+            target=self.finish_request,
+            args=(request, client_address),
+            daemon=True,
+        )
+        t.start()
+
+
+if __name__ == '__main__':
+    sys.path.insert(0, BASE_DIR)
+
+    from db.audit import init_db
+    init_db()
+
+    os.makedirs('/tmp/sap_mgmt', exist_ok=True)
+
+    server = ThreadedHTTPServer(('0.0.0.0', PORT), SAPMgmtHandler)
+    print(f'SAP Landscape Manager running on http://0.0.0.0:{PORT}')
+    print('Press Ctrl+C to stop.\n')
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('\nShutting down...')
+        server.shutdown()
