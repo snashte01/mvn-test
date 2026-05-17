@@ -39,8 +39,10 @@ def get_ansible_cfg():
     cfg = get_config()
     base = _BASE_DIR
     return {
-        'playbook_dir': os.path.join(base, cfg.get('ansible', 'playbook_dir', fallback='ansible/playbooks')),
-        'inventory':    os.path.join(base, cfg.get('ansible', 'inventory',    fallback='ansible/inventory/hosts.ini')),
-        'timeout':      int(cfg.get('ansible', 'timeout', fallback='300')),
-        'tmp_dir':      cfg.get('paths', 'tmp_dir', fallback='/tmp/sap_mgmt'),
+        'playbook_dir':    os.path.join(base, cfg.get('ansible', 'playbook_dir', fallback='ansible/playbooks')),
+        'inventory':       os.path.join(base, cfg.get('ansible', 'inventory',    fallback='ansible/inventory/hosts.ini')),
+        'timeout':         int(cfg.get('ansible', 'timeout', fallback='300')),
+        'tmp_dir':         cfg.get('paths', 'tmp_dir', fallback='/tmp/sap_mgmt'),
+        'remote_user':     cfg.get('ansible', 'remote_user',     fallback=''),
+        'become_password': cfg.get('ansible', 'become_password', fallback=''),
     }
