@@ -22,17 +22,29 @@ def render_hsr_page(error=None, results=None):
         return render('HSR Status', form + err_html, active_nav='hsr')
 
     if not results:
-        table = '<div class="alert alert-info">No HSR data collected. Check that <code>hana_primary</code> group is populated in <code>ansible/inventory/hosts.ini</code>.</div>'
+        table = ('<div class="alert alert-info">No HSR data collected. '
+                 'Check that <code>hana_primary</code> group is populated '
+                 'in <code>ansible/inventory/hosts.ini</code>.</div>')
     else:
         rows = ''
         for r in results:
             status = r.get('status', 'UNKNOWN')
             badge_cls = {
                 'ACTIVE':       'badge-ok',
-                'INITIALIZING': 'badge-warning',
-                'SYNCING':      'badge-warning',
-                'ERROR':        'badge-danger',
+                'OFFLINE':      'badge-danger',
+                'SUSPENDED':    'badge-danger',
+                'NO SECONDARY': 'badge-warning',
             }.get(status, 'badge-warning')
+
+            online_dot = (
+                '<span style="color:#1e8449;font-size:1.2em;">&#9679;</span>'
+                if r.get('online') else
+                '<span style="color:#c0392b;font-size:1.2em;">&#9679;</span>'
+            )
+
+            secondary = r.get('secondary_site', '')
+            rep_mode  = r.get('replication_mode', '')
+            sec_info  = f'{secondary} <span style="color:#888;font-size:.82em;">({rep_mode})</span>' if secondary else '—'
 
             rows += (
                 f'<tr>'
@@ -40,14 +52,18 @@ def render_hsr_page(error=None, results=None):
                 f'<td><code>{r.get("host","")}</code></td>'
                 f'<td>{r.get("site","")}</td>'
                 f'<td>{r.get("mode","")}</td>'
-                f'<td><span class="badge {badge_cls}">{status}</span></td>'
+                f'<td>{sec_info}</td>'
+                f'<td>{online_dot} <span class="badge {badge_cls}">{status}</span></td>'
                 f'<td style="font-size:.82em;color:#666;">{r.get("last_update","")}</td>'
                 f'</tr>\n'
             )
 
         table = f"""<table>
   <thead>
-    <tr><th>SID</th><th>Host</th><th>Site</th><th>Mode</th><th>Status</th><th>Checked At</th></tr>
+    <tr>
+      <th>SID</th><th>Host</th><th>Primary Site</th><th>Mode</th>
+      <th>Secondary Site</th><th>Status</th><th>Checked At</th>
+    </tr>
   </thead>
   <tbody>{rows}</tbody>
 </table>"""
