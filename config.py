@@ -31,6 +31,10 @@ def get_systems():
     return systems
 
 
+def get_fs_threshold():
+    return int(get_config().get('filesystem', 'default_threshold', fallback='80'))
+
+
 def get_ansible_cfg():
     cfg = get_config()
     base = _BASE_DIR

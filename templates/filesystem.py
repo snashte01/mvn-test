@@ -1,7 +1,10 @@
 from templates.base import render
 
 
-def render_fs_page(error=None, target='all', threshold=80):
+def render_fs_page(error=None, target='all', threshold=None):
+    from config import get_fs_threshold
+    if threshold is None:
+        threshold = get_fs_threshold()
     err_html = (
         f'<div class="alert alert-danger"><strong>Ansible error:</strong><br><pre>{error}</pre></div>'
         if error else ''

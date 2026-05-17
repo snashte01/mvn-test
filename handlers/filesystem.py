@@ -2,14 +2,14 @@ import glob
 import os
 
 from runner import run_playbook
-from config import get_ansible_cfg
+from config import get_ansible_cfg, get_fs_threshold
 from db.audit import log_action
 from templates.filesystem import render_fs_page, render_fs_results, render_extend_result
 
 
 def run_check(params):
     target    = params.get('target',    ['all'])[0].strip() or 'all'
-    threshold = params.get('threshold', ['80'])[0].strip()  or '80'
+    threshold = params.get('threshold', [str(get_fs_threshold())])[0].strip() or str(get_fs_threshold())
 
     cfg = get_ansible_cfg()
     tmp = cfg['tmp_dir']
