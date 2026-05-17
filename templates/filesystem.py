@@ -1,4 +1,18 @@
+import time
 from templates.base import render
+
+
+def render_waiting_page(job_id, started_ts):
+    elapsed = int(time.time() - started_ts)
+    content = f"""
+<meta http-equiv="refresh" content="4;url=/fs/status?job={job_id}">
+<div class="card" style="text-align:center;padding:40px;">
+  <div style="font-size:2em;margin-bottom:12px;">&#9696;</div>
+  <strong>Running filesystem check via Ansible...</strong>
+  <p style="color:#666;font-size:.9em;">Elapsed: {elapsed}s &nbsp;|&nbsp; Page refreshes automatically every 4 seconds.</p>
+  <p style="color:#aaa;font-size:.82em;">Job ID: <code>{job_id}</code></p>
+</div>"""
+    return render('Filesystem Check – Running', content, active_nav='fs')
 
 
 def render_fs_page(error=None, target='all', threshold=None):

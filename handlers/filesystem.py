@@ -7,6 +7,12 @@ from db.audit import log_action
 from templates.filesystem import render_fs_page, render_fs_results, render_extend_result
 
 
+def start_check(params):
+    """Kick off run_check in a background thread and return job_id immediately."""
+    from handlers.jobs import create
+    return create(run_check, params)
+
+
 def run_check(params):
     target    = params.get('target',    ['all'])[0].strip() or 'all'
     threshold = params.get('threshold', [str(get_fs_threshold())])[0].strip() or str(get_fs_threshold())

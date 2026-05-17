@@ -16,12 +16,23 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 class SAPMgmtHandler(BaseHTTPRequestHandler):
 
     def _send_html(self, content, status=200):
-        body = content.encode('utf-8')
-        self.send_response(status)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = content.encode('utf-8')
+            self.send_response(status)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client disconnected before we could respond
+
+    def _redirect(self, location):
+        try:
+            self.send_response(302)
+            self.send_header('Location', location)
+            self.end_headers()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def _read_post_params(self):
         length = int(self.headers.get('Content-Length', 0))
@@ -37,6 +48,7 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?')[0].rstrip('/') or '/'
+        qs   = urllib.parse.parse_qs(self.path.split('?', 1)[-1] if '?' in self.path else '')
         try:
             if path in ('/', '/dashboard'):
                 from templates.dashboard import render_dashboard
@@ -44,6 +56,17 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/fs':
                 from templates.filesystem import render_fs_page
                 self._send_html(render_fs_page())
+            elif path == '/fs/status':
+                job_id = qs.get('job', [''])[0]
+                from handlers.jobs import get
+                from templates.filesystem import render_waiting_page
+                job = get(job_id)
+                if not job:
+                    self._send_html(self._error_page(f'Job {job_id!r} not found.'), 404)
+                elif job['status'] == 'running':
+                    self._send_html(render_waiting_page(job_id, job['ts']))
+                else:
+                    self._send_html(job['result'])
             elif path == '/hsr':
                 from templates.hsr import render_hsr_page
                 self._send_html(render_hsr_page())
@@ -60,8 +83,9 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
         path = self.path
         try:
             if path == '/fs/check':
-                from handlers.filesystem import run_check
-                self._send_html(run_check(params))
+                from handlers.filesystem import start_check
+                job_id = start_check(params)
+                self._redirect(f'/fs/status?job={job_id}')
             elif path == '/fs/extend':
                 from handlers.filesystem import run_extend
                 self._send_html(run_extend(params))
