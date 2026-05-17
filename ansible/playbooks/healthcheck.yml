@@ -1,0 +1,188 @@
+---
+# Play 0: Initialize defaults on all hosts so final write always has all variables
+- name: Initialize health check defaults
+  hosts: all_sap
+  gather_facts: false
+  tasks:
+    - set_fact:
+        hc_resources: "N/A"
+        hc_filesystem: "N/A"
+        hc_timesync: "N/A"
+        hc_oslogs: "N/A"
+        hc_hdbinfo: "N/A"
+        hc_hsr: "N/A"
+        hc_processes: "N/A"
+        hc_wptable: "N/A"
+        hc_devdisp: "N/A"
+
+# Play 1: Common OS checks (all hosts, no become)
+- name: Common OS health checks
+  hosts: all_sap
+  gather_facts: false
+  become: false
+
+  vars:
+    tmp_dir: /tmp/sap_mgmt
+
+  pre_tasks:
+    - name: Ensure result directory exists
+      local_action:
+        module: file
+        path: "{{ tmp_dir }}"
+        state: directory
+        mode: '0755'
+      run_once: true
+
+  tasks:
+    - name: CPU and memory usage
+      shell: |
+        MEM_TOTAL=$(free -g | awk '/^Mem:/{print $2}')
+        MEM_USED=$(free -g | awk '/^Mem:/{print $3}')
+        MEM_PCT=$(awk "BEGIN{printf \"%d\", ($MEM_USED*100/$MEM_TOTAL)}")
+        CPU_IDLE=$(vmstat 1 2 | tail -1 | awk '{print $15}')
+        CPU_USED=$((100 - CPU_IDLE))
+        echo "${MEM_TOTAL}|${MEM_USED}|${MEM_PCT}|${CPU_USED}"
+      register: r_resources
+      changed_when: false
+
+    - set_fact:
+        hc_resources: "{{ r_resources.stdout }}"
+
+    - name: Filesystem usage
+      shell: >
+        df -P /hana/data /hana/log /hana/shared /usr/sap / 2>/dev/null |
+        awk 'NR>1 {gsub(/%/,"",$5); printf "%s|%s|%s|%s|%s|%s\n",$1,$2,$3,$4,$5,$6}'
+      register: r_fs
+      changed_when: false
+
+    - set_fact:
+        hc_filesystem: "{{ r_fs.stdout }}"
+
+    - name: Time synchronization
+      shell: |
+        if command -v chronyc &>/dev/null; then
+          chronyc tracking | grep 'System time' | awk '{print $4, $5, $6}'
+        else
+          timedatectl show -p NTPSynchronized --value 2>/dev/null || echo "unknown"
+        fi
+      register: r_time
+      changed_when: false
+
+    - set_fact:
+        hc_timesync: "{{ r_time.stdout | default('unknown') }}"
+
+    - name: OS error logs (last 2 hours)
+      shell: |
+        journalctl --since "2 hours ago" -p err --no-pager -q 2>/dev/null | tail -10 || echo "no_errors"
+      register: r_logs
+      changed_when: false
+
+    - set_fact:
+        hc_oslogs: "{{ r_logs.stdout }}"
+
+# Play 2: HANA DB checks
+- name: HANA DB health checks
+  hosts: hana_primary:hana_secondary
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: HDB info
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        HDB info
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_hdbinfo
+      changed_when: false
+
+    - set_fact:
+        hc_hdbinfo: "{{ r_hdbinfo.stdout }}"
+
+# Play 3: HSR check (primary only)
+- name: HANA HSR health check
+  hosts: hana_primary
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: HSR replication state
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        hdbnsutil -sr_state
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_hsr
+      changed_when: false
+
+    - set_fact:
+        hc_hsr: "{{ r_hsr.stdout }}"
+
+# Play 4: ABAP process checks (ASCS, ERS, App servers)
+- name: ABAP process health checks
+  hosts: ascs:ers:app_servers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: SAP process list
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        sapcontrol -nr {{ instance }} -function GetProcessList
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_procs
+      changed_when: false
+      ignore_errors: true
+
+    - set_fact:
+        hc_processes: "{{ r_procs.stdout | default('N/A') }}"
+
+# Play 5: Work process check (App servers only)
+- name: ABAP work process and log checks
+  hosts: app_servers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: ABAP work process table
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        sapcontrol -nr {{ instance }} -function ABAPGetWPTable
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_wp
+      changed_when: false
+      ignore_errors: true
+
+    - name: dev_disp log errors
+      shell: |
+        LOG="/usr/sap/{{ sid }}/D{{ instance }}/work/dev_disp"
+        if [ -f "$LOG" ]; then
+          tail -100 "$LOG" | grep -iE "error|dump|abort|failed|crash" | tail -5 || echo "no_errors"
+        else
+          echo "no_errors"
+        fi
+      register: r_devdisp
+      changed_when: false
+      ignore_errors: true
+
+    - set_fact:
+        hc_wptable:  "{{ r_wp.stdout | default('N/A') }}"
+        hc_devdisp:  "{{ r_devdisp.stdout | default('no_errors') }}"
+
+# Play 6: Write all results to management server
+- name: Write health check results
+  hosts: all_sap
+  gather_facts: false
+  tasks:
+    - name: Write JSON result per host
+      local_action:
+        module: copy
+        content: "{{ {'hostname': inventory_hostname, 'sid': sid, 'instance': instance | string, 'role': group_names | select('in', ['hana_primary','hana_secondary','ascs','ers','app_servers']) | list | first | default('unknown'), 'resources': hc_resources, 'filesystem': hc_filesystem, 'timesync': hc_timesync, 'oslogs': hc_oslogs, 'hdbinfo': hc_hdbinfo, 'hsr': hc_hsr, 'processes': hc_processes, 'wptable': hc_wptable, 'devdisp': hc_devdisp} | to_json }}"
+        dest: "/tmp/sap_mgmt/health_{{ inventory_hostname }}.json"
+      become: false

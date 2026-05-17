@@ -4,6 +4,7 @@ def render(title, content, active_nav=''):
         ('/fs',     'Filesystem', 'fs'),
         ('/hsr',    'HSR Status', 'hsr'),
         ('/backup', 'Backup',     'backup'),
+        ('/health', 'Health Check', 'health'),
     ]
     nav_links = ''
     for href, label, key in nav_items:

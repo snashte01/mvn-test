@@ -49,6 +49,11 @@ def render_dashboard():
     <div class="stat-lbl">Backup Console</div>
     <a href="/backup" class="btn btn-primary">Open Console</a>
   </div>
+  <div class="stat-box">
+    <div class="stat-num">HC</div>
+    <div class="stat-lbl">Health Check</div>
+    <a href="/health" class="btn btn-primary">Run Checks</a>
+  </div>
 </div>"""
 
     return render('Dashboard', system_table + quick_actions, active_nav='dashboard')

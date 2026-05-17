@@ -31,6 +31,24 @@ def get_systems():
     return systems
 
 
+def get_landscape():
+    """Return list of all landscape hosts with their metadata."""
+    cfg = get_config()
+    if not cfg.has_section('landscape'):
+        return []
+    hosts = []
+    for hostname, value in cfg.items('landscape'):
+        parts = [p.strip() for p in value.split(':')]
+        if len(parts) >= 3:
+            hosts.append({
+                'hostname': hostname,
+                'sid':      parts[0],
+                'instance': parts[1],
+                'role':     parts[2],
+            })
+    return hosts
+
+
 def get_fs_threshold():
     return int(get_config().get('filesystem', 'default_threshold', fallback='80'))
 

@@ -73,6 +73,20 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/backup':
                 from templates.backup import render_backup_page
                 self._send_html(render_backup_page())
+            elif path == '/health':
+                from templates.healthcheck import render_health_page
+                self._send_html(render_health_page())
+            elif path == '/health/status':
+                job_id = qs.get('job', [''])[0]
+                from handlers.jobs import get
+                from templates.filesystem import render_waiting_page
+                job = get(job_id)
+                if not job:
+                    self._send_html(self._error_page(f'Job {job_id!r} not found.'), 404)
+                elif job['status'] == 'running':
+                    self._send_html(render_waiting_page(job_id, job['ts']))
+                else:
+                    self._send_html(job['result'])
             else:
                 self._send_html(self._error_page('Page not found'), 404)
         except Exception:
@@ -95,6 +109,10 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/backup/trigger':
                 from handlers.backup import run_trigger
                 self._send_html(run_trigger(params))
+            elif path == '/health/check':
+                from handlers.healthcheck import start_check
+                job_id = start_check(params)
+                self._redirect(f'/health/status?job={job_id}')
             else:
                 self._send_html(self._error_page('Endpoint not found'), 404)
         except Exception:
