@@ -1,6 +1,7 @@
 """Thin wrapper around ansible-playbook subprocess calls."""
 import subprocess
 import tempfile
+import json
 import os
 from config import get_ansible_cfg
 
@@ -27,13 +28,14 @@ def run_playbook(playbook, extra_vars=None, limit=None):
         for k, v in extra_vars.items():
             cmd += ['-e', f'{k}={v}']
 
-    # Write become password to a temp file so it never appears in `ps aux`.
+    # Write become password as JSON to a temp file so it never appears in
+    # `ps aux`. JSON encoding handles all special characters safely.
     tmp_pass = None
     if cfg.get('become_password'):
         tmp_pass = tempfile.NamedTemporaryFile(
-            mode='w', suffix='.yml', prefix='/tmp/.ap_', delete=False)
+            mode='w', suffix='.json', prefix='/tmp/.ap_', delete=False)
         os.chmod(tmp_pass.name, 0o600)
-        tmp_pass.write(f'ansible_become_password: "{cfg["become_password"]}"\n')
+        tmp_pass.write(json.dumps({'ansible_become_password': cfg['become_password']}))
         tmp_pass.close()
         cmd += ['--extra-vars', f'@{tmp_pass.name}']
 
