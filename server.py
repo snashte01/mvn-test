@@ -79,12 +79,22 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/health/status':
                 job_id = qs.get('job', [''])[0]
                 from handlers.jobs import get
-                from templates.filesystem import render_waiting_page
                 job = get(job_id)
                 if not job:
                     self._send_html(self._error_page(f'Job {job_id!r} not found.'), 404)
                 elif job['status'] == 'running':
-                    self._send_html(render_waiting_page(job_id, job['ts']))
+                    elapsed = int(datetime.datetime.now().timestamp() - job['ts'])
+                    from templates.base import render
+                    waiting = (
+                        '<meta http-equiv="refresh" content="4;url=/health/status?job=' + job_id + '">'
+                        '<div class="card" style="text-align:center;padding:40px;">'
+                        '<div style="font-size:2em;margin-bottom:12px;">&#9696;</div>'
+                        '<strong>Running health check across all SAP hosts via Ansible...</strong>'
+                        '<p style="color:#666;font-size:.9em;">Elapsed: ' + str(elapsed) + 's &nbsp;|&nbsp; Page refreshes every 4 seconds.</p>'
+                        '<p style="color:#aaa;font-size:.82em;">Job ID: <code>' + job_id + '</code></p>'
+                        '</div>'
+                    )
+                    self._send_html(render('Health Check - Running', waiting, active_nav='health'))
                 else:
                     self._send_html(job['result'])
             else:
