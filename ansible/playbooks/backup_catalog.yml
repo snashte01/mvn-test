@@ -1,0 +1,43 @@
+---
+- name: HANA backup catalog
+  hosts: hana_primary
+  gather_facts: false
+  become: true
+  ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
+
+  tasks:
+    - name: Write HANA password temp file
+      copy:
+        content: "{{ hana_system_password }}"
+        dest: /tmp/.hdb_mgmt_pass
+        mode: '0600'
+      no_log: true
+
+    - name: Query backup catalog via hdbsql
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        PASS=$(cat /tmp/.hdb_mgmt_pass)
+        hdbsql -i {{ instance }} -u SYSTEM -p "${PASS}" -x -C \
+          "SELECT TOP 30 ENTRY_TYPE_NAME, STATE_NAME, TO_VARCHAR(SYS_START_TIME,'YYYY-MM-DD HH24:MI:SS'), TO_VARCHAR(COALESCE(SYS_END_TIME,CURRENT_TIMESTAMP),'YYYY-MM-DD HH24:MI:SS'), BACKUP_ID, COMMENT FROM M_BACKUP_CATALOG ORDER BY SYS_START_TIME DESC" \
+          2>&1 | iconv -f utf-8 -t utf-8 -c 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_catalog
+      changed_when: false
+      no_log: true
+
+    - name: Remove HANA password temp file
+      file:
+        path: /tmp/.hdb_mgmt_pass
+        state: absent
+
+    - name: Write catalog result
+      local_action:
+        module: copy
+        content: "{{ {'hostname': inventory_hostname, 'sid': sid, 'instance': instance | string, 'rc': r_catalog.rc, 'output': r_catalog.stdout, 'error': r_catalog.stderr} | to_json }}"
+        dest: /tmp/sap_mgmt/backup_catalog.json
+      become: false

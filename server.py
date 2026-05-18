@@ -73,6 +73,48 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/backup':
                 from templates.backup import render_backup_page
                 self._send_html(render_backup_page())
+            elif path == '/backup/catalog/status':
+                job_id = qs.get('job', [''])[0]
+                from handlers.jobs import get
+                job = get(job_id)
+                if not job:
+                    self._send_html(self._error_page(f'Job {job_id!r} not found.'), 404)
+                elif job['status'] == 'running':
+                    elapsed = int(datetime.datetime.now().timestamp() - job['ts'])
+                    from templates.base import render
+                    waiting = (
+                        '<meta http-equiv="refresh" content="5;url=/backup/catalog/status?job=' + job_id + '">'
+                        '<div class="card" style="text-align:center;padding:40px;">'
+                        '<div style="font-size:2em;margin-bottom:12px;">&#9696;</div>'
+                        '<strong>Querying HANA backup catalog via hdbsql...</strong>'
+                        '<p style="color:#666;font-size:.9em;">Elapsed: ' + str(elapsed) + 's &nbsp;|&nbsp; Refreshes every 5 seconds.</p>'
+                        '<p style="color:#aaa;font-size:.82em;">Job ID: <code>' + job_id + '</code></p>'
+                        '</div>'
+                    )
+                    self._send_html(render('Backup Catalog – Querying', waiting, active_nav='backup'))
+                else:
+                    self._send_html(job['result'])
+            elif path == '/backup/trigger/status':
+                job_id = qs.get('job', [''])[0]
+                from handlers.jobs import get
+                job = get(job_id)
+                if not job:
+                    self._send_html(self._error_page(f'Job {job_id!r} not found.'), 404)
+                elif job['status'] == 'running':
+                    elapsed = int(datetime.datetime.now().timestamp() - job['ts'])
+                    from templates.base import render
+                    waiting = (
+                        '<meta http-equiv="refresh" content="5;url=/backup/trigger/status?job=' + job_id + '">'
+                        '<div class="card" style="text-align:center;padding:40px;">'
+                        '<div style="font-size:2em;margin-bottom:12px;">&#9696;</div>'
+                        '<strong>HANA backup running — waiting for completion...</strong>'
+                        '<p style="color:#666;font-size:.9em;">Elapsed: ' + str(elapsed) + 's &nbsp;|&nbsp; Refreshes every 5 seconds.</p>'
+                        '<p style="color:#aaa;font-size:.82em;">This may take 15–60 minutes for large databases.</p>'
+                        '</div>'
+                    )
+                    self._send_html(render('Backup – Running', waiting, active_nav='backup'))
+                else:
+                    self._send_html(job['result'])
             elif path == '/health':
                 from templates.healthcheck import render_health_page
                 self._send_html(render_health_page())
@@ -116,9 +158,14 @@ class SAPMgmtHandler(BaseHTTPRequestHandler):
             elif path == '/hsr/check':
                 from handlers.hsr import run_check
                 self._send_html(run_check(params))
+            elif path == '/backup/catalog':
+                from handlers.backup import start_catalog
+                job_id = start_catalog(params)
+                self._redirect(f'/backup/catalog/status?job={job_id}')
             elif path == '/backup/trigger':
-                from handlers.backup import run_trigger
-                self._send_html(run_trigger(params))
+                from handlers.backup import start_trigger
+                job_id = start_trigger(params)
+                self._redirect(f'/backup/trigger/status?job={job_id}')
             elif path == '/health/check':
                 from handlers.healthcheck import start_check
                 job_id = start_check(params)

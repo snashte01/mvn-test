@@ -1,0 +1,47 @@
+---
+- name: HANA backup trigger
+  hosts: hana_primary
+  gather_facts: false
+  become: true
+  ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
+
+  tasks:
+    - name: Write HANA password temp file
+      copy:
+        content: "{{ hana_system_password }}"
+        dest: /tmp/.hdb_mgmt_pass
+        mode: '0600'
+      no_log: true
+
+    - name: Trigger HANA data backup
+      shell: |
+        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
+        PASS=$(cat /tmp/.hdb_mgmt_pass)
+        LABEL="{{ backup_label | default('') }}"
+        if [ -z "$LABEL" ]; then
+          LABEL="MGMT_$(date +%Y%m%d_%H%M%S)"
+        fi
+        hdbsql -i {{ instance }} -u SYSTEM -p "${PASS}" \
+          "BACKUP DATA USING FILE ('${LABEL}')" 2>&1 | iconv -f utf-8 -t utf-8 -c 2>/dev/null || true
+        echo "BACKUP_LABEL=${LABEL}"
+      args:
+        executable: /bin/bash
+      become_user: "{{ sid | lower }}adm"
+      register: r_trigger
+      changed_when: true
+      no_log: true
+
+    - name: Remove HANA password temp file
+      file:
+        path: /tmp/.hdb_mgmt_pass
+        state: absent
+
+    - name: Write trigger result
+      local_action:
+        module: copy
+        content: "{{ {'hostname': inventory_hostname, 'sid': sid, 'rc': r_trigger.rc, 'output': r_trigger.stdout, 'error': r_trigger.stderr} | to_json }}"
+        dest: /tmp/sap_mgmt/backup_trigger.json
+      become: false

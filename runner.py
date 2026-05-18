@@ -8,8 +8,13 @@ from config import get_ansible_cfg
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def run_playbook(playbook, extra_vars=None, limit=None):
-    """Run an Ansible playbook and return the CompletedProcess result."""
+def run_playbook(playbook, extra_vars=None, secure_vars=None, limit=None):
+    """Run an Ansible playbook and return the CompletedProcess result.
+
+    extra_vars: dict of non-sensitive vars (added as -e key=value)
+    secure_vars: dict of sensitive vars merged into the become-password JSON
+                 temp file — never appear in ps aux
+    """
     cfg = get_ansible_cfg()
 
     cmd = [
@@ -28,14 +33,20 @@ def run_playbook(playbook, extra_vars=None, limit=None):
         for k, v in extra_vars.items():
             cmd += ['-e', f'{k}={v}']
 
-    # Write become password as JSON to a temp file so it never appears in
-    # `ps aux`. JSON encoding handles all special characters safely.
-    tmp_pass = None
+    # Merge become_password and any caller-supplied secure_vars into one JSON
+    # temp file so they never appear in ps aux.
+    all_secure = {}
     if cfg.get('become_password'):
+        all_secure['ansible_become_password'] = cfg['become_password']
+    if secure_vars:
+        all_secure.update(secure_vars)
+
+    tmp_pass = None
+    if all_secure:
         tmp_pass = tempfile.NamedTemporaryFile(
             mode='w', suffix='.json', prefix='/tmp/.ap_', delete=False)
         os.chmod(tmp_pass.name, 0o600)
-        tmp_pass.write(json.dumps({'ansible_become_password': cfg['become_password']}))
+        tmp_pass.write(json.dumps(all_secure))
         tmp_pass.close()
         cmd += ['--extra-vars', f'@{tmp_pass.name}']
 
