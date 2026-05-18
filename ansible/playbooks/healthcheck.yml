@@ -65,15 +65,7 @@
 
     - name: Time synchronization
       shell: |
-        if command -v chronyc &>/dev/null; then
-          OFFSET=$(chronyc -c tracking 2>/dev/null | cut -d, -f5)
-          if [ -z "$OFFSET" ]; then
-            OFFSET=$(chronyc tracking 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i~/^-?[0-9]+\.[0-9]{4,}/) {print $i; exit}}')
-          fi
-          echo "${OFFSET:-unknown}"
-        else
-          timedatectl show -p NTPSynchronized --value 2>/dev/null || echo "unknown"
-        fi
+        timedatectl show -p NTPSynchronized --value 2>/dev/null || echo "unknown"
       register: r_time
       changed_when: false
 
