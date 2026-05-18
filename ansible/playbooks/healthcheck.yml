@@ -3,6 +3,7 @@
 - name: Initialize health check defaults
   hosts: all_sap
   gather_facts: false
+  ignore_unreachable: true
   tasks:
     - set_fact:
         hc_resources: "N/A"
@@ -20,6 +21,7 @@
   hosts: all_sap
   gather_facts: false
   become: false
+  ignore_unreachable: true
 
   vars:
     tmp_dir: /tmp/sap_mgmt
@@ -85,6 +87,7 @@
   hosts: hana_primary:hana_secondary
   gather_facts: false
   become: true
+  ignore_unreachable: true
 
   tasks:
     - name: HDB info
@@ -105,6 +108,7 @@
   hosts: hana_primary
   gather_facts: false
   become: true
+  ignore_unreachable: true
 
   tasks:
     - name: HSR replication state
@@ -125,6 +129,7 @@
   hosts: ascs:ers:app_servers
   gather_facts: false
   become: true
+  ignore_unreachable: true
 
   tasks:
     - name: SAP process list
@@ -146,6 +151,7 @@
   hosts: app_servers
   gather_facts: false
   become: true
+  ignore_unreachable: true
 
   tasks:
     - name: ABAP work process table
@@ -179,6 +185,7 @@
 - name: Write health check results
   hosts: all_sap
   gather_facts: false
+  ignore_unreachable: true
   tasks:
     - name: Write JSON result per host
       local_action:

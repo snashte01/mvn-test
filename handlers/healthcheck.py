@@ -26,7 +26,8 @@ def _run_check(params):
     log_action('health_check', 'all_sap', result.returncode == 0,
                f'rc={result.returncode}')
 
-    if result.returncode != 0:
+    result_files = glob.glob(os.path.join(tmp, 'health_*.json'))
+    if result.returncode != 0 and not result_files:
         return render_health_page(
             error=result.stderr or result.stdout)
 
