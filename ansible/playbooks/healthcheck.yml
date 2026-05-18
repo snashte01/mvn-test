@@ -44,8 +44,16 @@
         MEM_TOTAL=$(free -g | awk '/^Mem:/{print $2}')
         MEM_USED=$(free -g | awk '/^Mem:/{print $3}')
         MEM_PCT=$(awk "BEGIN{printf \"%d\", ($MEM_USED*100/$MEM_TOTAL)}")
-        CPU_IDLE=$(vmstat 1 2 | tail -1 | awk '{print $15}')
-        CPU_USED=$((100 - CPU_IDLE))
+        S1=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8}' /proc/stat)
+        sleep 1
+        S2=$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8}' /proc/stat)
+        CPU_USED=$(awk -v s1="$S1" -v s2="$S2" 'BEGIN {
+          split(s1,a); split(s2,b)
+          t1=a[1]+a[2]+a[3]+a[4]+a[5]+a[6]+a[7]
+          t2=b[1]+b[2]+b[3]+b[4]+b[5]+b[6]+b[7]
+          dt=t2-t1; di=b[4]-a[4]
+          print (dt>0) ? int((dt-di)*100/dt) : 0
+        }')
         echo "${MEM_TOTAL}|${MEM_USED}|${MEM_PCT}|${CPU_USED}"
       register: r_resources
       changed_when: false
