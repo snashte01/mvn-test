@@ -125,21 +125,20 @@
         hc_hsr: "{{ r_hsr.stdout }}"
 
 # Play 4: ABAP process checks (ASCS, ERS, App servers)
+# sapcontrol connects via HTTP to sapstartsrv — no become needed
 - name: ABAP process health checks
   hosts: ascs:ers:app_servers
   gather_facts: false
-  become: true
+  become: false
   ignore_unreachable: true
 
   tasks:
     - name: SAP process list
       shell: |
-        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
         SAPCTRL=$(which sapcontrol 2>/dev/null || echo /usr/sap/hostctrl/exe/sapcontrol)
         $SAPCTRL -nr {{ instance }} -function GetProcessList 2>&1 || true
       args:
         executable: /bin/bash
-      become_user: "{{ sid | lower }}adm"
       register: r_procs
       changed_when: false
 
@@ -150,18 +149,16 @@
 - name: ABAP work process and log checks
   hosts: app_servers
   gather_facts: false
-  become: true
+  become: false
   ignore_unreachable: true
 
   tasks:
     - name: ABAP work process table
       shell: |
-        source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
         SAPCTRL=$(which sapcontrol 2>/dev/null || echo /usr/sap/hostctrl/exe/sapcontrol)
         $SAPCTRL -nr {{ instance }} -function ABAPGetWPTable 2>&1 || true
       args:
         executable: /bin/bash
-      become_user: "{{ sid | lower }}adm"
       register: r_wp
       changed_when: false
 
