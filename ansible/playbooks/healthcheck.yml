@@ -66,7 +66,8 @@
     - name: Time synchronization
       shell: |
         if command -v chronyc &>/dev/null; then
-          chronyc tracking | grep 'System time' | awk '{print $4, $5, $6}'
+          OFFSET=$(chronyc tracking 2>/dev/null | awk '/System time/{print $4}')
+          echo "${OFFSET:-unknown}"
         else
           timedatectl show -p NTPSynchronized --value 2>/dev/null || echo "unknown"
         fi
