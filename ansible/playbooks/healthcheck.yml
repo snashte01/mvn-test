@@ -135,13 +135,13 @@
     - name: SAP process list
       shell: |
         source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
-        sapcontrol -nr {{ instance }} -function GetProcessList
+        SAPCTRL=$(which sapcontrol 2>/dev/null || echo /usr/sap/hostctrl/exe/sapcontrol)
+        $SAPCTRL -nr {{ instance }} -function GetProcessList 2>&1 || true
       args:
         executable: /bin/bash
       become_user: "{{ sid | lower }}adm"
       register: r_procs
       changed_when: false
-      ignore_errors: true
 
     - set_fact:
         hc_processes: "{{ r_procs.stdout | default('N/A') }}"
@@ -157,13 +157,13 @@
     - name: ABAP work process table
       shell: |
         source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
-        sapcontrol -nr {{ instance }} -function ABAPGetWPTable
+        SAPCTRL=$(which sapcontrol 2>/dev/null || echo /usr/sap/hostctrl/exe/sapcontrol)
+        $SAPCTRL -nr {{ instance }} -function ABAPGetWPTable 2>&1 || true
       args:
         executable: /bin/bash
       become_user: "{{ sid | lower }}adm"
       register: r_wp
       changed_when: false
-      ignore_errors: true
 
     - name: dev_disp log errors
       shell: |
