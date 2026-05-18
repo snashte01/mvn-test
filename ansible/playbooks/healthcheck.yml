@@ -22,6 +22,9 @@
   gather_facts: false
   become: false
   ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
 
   vars:
     tmp_dir: /tmp/sap_mgmt
@@ -88,12 +91,15 @@
   gather_facts: false
   become: true
   ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
 
   tasks:
     - name: HDB info
       shell: |
         source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
-        HDB info
+        HDB info 2>/dev/null | iconv -f utf-8 -t utf-8 -c 2>/dev/null || true
       args:
         executable: /bin/bash
       become_user: "{{ sid | lower }}adm"
@@ -109,12 +115,15 @@
   gather_facts: false
   become: true
   ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
 
   tasks:
     - name: HSR replication state
       shell: |
         source /usr/sap/{{ sid }}/home/.sapenv.sh 2>/dev/null || true
-        hdbnsutil -sr_state
+        hdbnsutil -sr_state 2>/dev/null | iconv -f utf-8 -t utf-8 -c 2>/dev/null || true
       args:
         executable: /bin/bash
       become_user: "{{ sid | lower }}adm"
@@ -132,6 +141,9 @@
   become: true
   become_user: sapadm
   ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
 
   tasks:
     - name: SAP process list
@@ -152,6 +164,9 @@
   become: true
   become_user: sapadm
   ignore_unreachable: true
+  environment:
+    LANG: C
+    LC_ALL: C
 
   tasks:
     - name: ABAP work process table
