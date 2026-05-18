@@ -149,6 +149,9 @@ def _parse_hdbinfo(raw):
     found = set()
     for line in raw.splitlines():
         low = line.lower()
+        # hdb.sapSID_HDBNN is the HANA daemon wrapper process
+        if 'hdb.sap' in low:
+            found.add('hdbdaemon')
         for p in key_procs:
             if p in low:
                 found.add(p)
