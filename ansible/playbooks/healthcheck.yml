@@ -65,7 +65,7 @@
 
     - name: Time synchronization
       shell: |
-        timedatectl show -p NTPSynchronized --value 2>/dev/null || echo "unknown"
+        timedatectl show -p NTPSynchronized 2>/dev/null || echo "NTPSynchronized=unknown"
       register: r_time
       changed_when: false
 

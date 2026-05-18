@@ -110,9 +110,20 @@ def _parse_filesystem(raw):
 
 
 def _parse_timesync(raw):
+    # Ansible may coerce bare 'yes'/'no' stdout to Python booleans
+    if isinstance(raw, bool):
+        return {'status': 'ok' if raw else 'warning',
+                'detail': 'NTP synchronized' if raw else 'NTP not synchronized'}
     if not raw or raw == 'N/A':
         return {'status': 'unknown', 'detail': 'N/A'}
-    raw = raw.strip()
+    raw = str(raw).strip()
+    # Handle 'NTPSynchronized=yes' format from timedatectl show
+    if '=' in raw:
+        val = raw.split('=', 1)[1].strip().lower()
+        if val == 'yes':
+            return {'status': 'ok', 'detail': 'NTP synchronized'}
+        if val in ('no', 'unknown'):
+            return {'status': 'warning', 'detail': 'NTP not synchronized'}
     try:
         offset = float(raw.split()[0])
         if abs(offset) > 1.0:
@@ -121,9 +132,10 @@ def _parse_timesync(raw):
             return {'status': 'warning', 'detail': f'Offset {offset:.3f}s'}
         return {'status': 'ok', 'detail': f'Offset {offset:.6f}s'}
     except Exception:
-        if 'yes' in raw.lower():
+        low = raw.lower()
+        if 'yes' in low or low == 'true':
             return {'status': 'ok', 'detail': 'NTP synchronized'}
-        if 'no' in raw.lower() or 'unknown' in raw.lower():
+        if 'no' in low or 'unknown' in low or low == 'false':
             return {'status': 'warning', 'detail': 'NTP not synchronized'}
         return {'status': 'ok', 'detail': raw[:80]}
 
